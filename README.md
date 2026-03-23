@@ -6,6 +6,12 @@ Persistent cross-session memory for [OpenClaw](https://github.com/openclaw/openc
 
 Agents forget everything after compaction. Kiseki fixes that. It gives your OpenClaw agent persistent, cross-session memory with multi-layer search (FTS5 full-text + vector similarity on chunks and messages), importance-ranked results, solution/decision records, and entity timeline tracking. Seven MCP tools are exposed to the agent through a single SKILL.md that teaches it when and how to use each one.
 
+## Quick Install
+
+Send the contents of [INSTALLING.md](INSTALLING.md) to your OpenClaw agent and it will set up everything for you.
+
+For manual installation, see the methods below.
+
 ## Prerequisites
 
 - **Go 1.23+** - for building Kiseki
