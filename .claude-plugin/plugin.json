@@ -1,0 +1,7 @@
+{
+  "name": "kiseki-claw",
+  "version": "0.1.0",
+  "description": "Persistent cross-session memory for OpenClaw via Kiseki",
+  "skills": ["skills"],
+  "mcpServers": [".mcp.json"]
+}
