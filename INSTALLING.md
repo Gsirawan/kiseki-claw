@@ -91,18 +91,21 @@ If `openclaw.json` already has a `plugins.entries` section, add the `kiseki-claw
 
 ## Step 4: Configure Environment
 
-Add skill environment variables to `~/.openclaw/openclaw.json` under `skills.entries`. **Merge** into the existing config -- do not overwrite:
+Add Kiseki's MCP server environment variables to `~/.openclaw/openclaw.json` under `mcp.servers.kiseki.env`. **Merge** into the existing config -- do not overwrite:
 
 ```json
 {
-  "skills": {
-    "entries": {
+  "mcp": {
+    "servers": {
       "kiseki": {
-        "enabled": true,
+        "command": "kiseki",
+        "args": ["serve"],
         "env": {
           "KISEKI_DB": "~/.local/share/kiseki/memory.db",
+          "KISEKI_PREFIX": "kiseki",
+          "EMBED_MODEL": "qwen3-embedding:0.6b",
           "OLLAMA_HOST": "127.0.0.1:11434",
-          "EMBED_MODEL": "qwen3-embedding:0.6b"
+          "KISEKI_INGEST_ROOT": "~/.openclaw/workspace"
         }
       }
     }
@@ -112,7 +115,11 @@ Add skill environment variables to `~/.openclaw/openclaw.json` under `skills.ent
 
 **IMPORTANT:** `OLLAMA_HOST` must be `host:port` only. Do NOT include `http://` prefix. Kiseki prepends the scheme internally, so including it would produce a malformed URL.
 
-If `openclaw.json` already has a `skills.entries` section, add the `kiseki` key to it. Do not remove existing entries.
+**IMPORTANT:** `KISEKI_INGEST_ROOT` is required for the cron job and any `kiseki_ingest` calls that use absolute file paths. Without it, ingestion of files like `MEMORY.md` will be silently rejected. Set it to the workspace root (`~/.openclaw/workspace`).
+
+If `openclaw.json` already has an `mcp.servers` section, add the `kiseki` key to it. Do not remove existing server entries.
+
+**Note for bundle plugin users (Method C in README):** If you installed kiseki-claw as a bundle plugin instead of using config-level MCP, the bundled `.mcp.json` provides default env values. To override them, add your customizations under `skills.entries.kiseki.env` in `openclaw.json`. Values in `skills.entries.*.env` are injected into the process environment and override the bundled defaults.
 
 ---
 
@@ -143,7 +150,36 @@ If the file still does not exist, **stop and report the error to the user.**
 
 ---
 
-## Step 6: Create Capture Hooks
+## Step 6: Seed Workspace Memory
+
+The cron job (Step 8) ingests markdown files from `~/.openclaw/workspace/memory/` into Kiseki. Without at least one file there, the first cron run has nothing to ingest.
+
+Create the memory directory and seed a `MEMORY.md`:
+
+```bash
+mkdir -p ~/.openclaw/workspace/memory
+```
+
+Create `~/.openclaw/workspace/memory/MEMORY.md` with initial context. Ask the user what to include -- at minimum, write a file like:
+
+```markdown
+# Memory
+
+## About
+- Name: [user's name]
+- Date started: [today's date]
+
+## Notes
+[Any initial context the user wants the agent to remember across sessions.]
+```
+
+The user can add more files to `~/.openclaw/workspace/memory/` at any time. The cron job will pick up any `.md` files modified in the last 6 hours and ingest them automatically.
+
+If the user has no specific context to seed, create the file with just the header and date. An empty directory is fine too -- the cron will simply report 0 files ingested until content is added.
+
+---
+
+## Step 7: Create Capture Hooks
 
 Create two hooks for automatic memory capture. These ensure conversations are captured to kiseki without relying on the agent to remember.
 
@@ -286,11 +322,13 @@ Both `kiseki-compact-capture` and `kiseki-session-capture` should appear as enab
 
 ---
 
-## Step 7: Create Cron Jobs
+## Step 8: Create Cron Jobs
 
-Set up automated memory sync and health monitoring using the `openclaw cron add` command.
+Set up automated memory sync and health monitoring using the `openclaw cron add` command. These are OpenClaw-managed cron jobs -- they run inside the gateway process, not the system crontab.
 
 ### Workspace memory sync (every 6 hours)
+
+This cron job runs every 6 hours (at 00:00, 06:00, 12:00, 18:00). It scans `~/.openclaw/workspace/memory/` for `.md` files modified in the last 6 hours and ingests them into Kiseki via `kiseki_ingest`. This is how `MEMORY.md` and any other workspace memory files get into Kiseki's searchable index automatically.
 
 ```bash
 openclaw cron add \
@@ -304,6 +342,8 @@ openclaw cron add \
 
 ### Health check (daily)
 
+This cron job runs once daily at 08:00. It calls `kiseki_status` to verify Ollama is healthy and the database has data. If anything is wrong, it announces the issue. This is your early warning system for silent failures.
+
 ```bash
 openclaw cron add \
   --name "kiseki-health-check" \
@@ -314,17 +354,29 @@ openclaw cron add \
   --announce
 ```
 
-Verify the cron jobs were created:
+### Verify cron jobs
+
+Confirm both jobs were created:
 
 ```bash
 openclaw cron list
 ```
 
-Both `kiseki-ingest-memory` and `kiseki-health-check` should appear. If either fails, **stop and report the error to the user.**
+Both `kiseki-ingest-memory` and `kiseki-health-check` should appear in the output. The list shows each job's name, schedule, and next run time.
+
+To verify a cron job will actually work, you can trigger a manual run:
+
+```bash
+openclaw cron run kiseki-health-check
+```
+
+This runs the health check immediately. If it succeeds and returns `HEARTBEAT_OK` (or reports a real issue), the cron is configured correctly. If it fails with a tool error, the MCP server is not connected -- go back to Step 4 and verify the configuration.
+
+If either cron job fails to create, **stop and report the error to the user.**
 
 ---
 
-## Step 8: Restart and Verify
+## Step 9: Restart and Verify
 
 Restart the gateway to pick up all changes:
 
