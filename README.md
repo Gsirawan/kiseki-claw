@@ -32,7 +32,7 @@ Three methods, ordered from simplest to most portable.
 
 Add the MCP server directly to your OpenClaw config. No plugin install needed.
 
-> **Note:** Requires OpenClaw built from source or a version that supports the `mcp.servers` config key. If OpenClaw rejects the key, use Method B or C instead.
+> **Compatibility:** The `mcp.servers` config key is supported in OpenClaw built from source (v2026.3.22+) but is NOT available in the current npm release (v2026.3.13). If you installed OpenClaw via npm, use Method B (mcporter) or Method C (bundle plugin) instead. Building from source: `git clone https://github.com/openclaw/openclaw && cd openclaw && pnpm install && pnpm build`
 
 **Step 1.** Add `mcp.servers.kiseki` to `~/.openclaw/openclaw.json`:
 
@@ -259,6 +259,9 @@ Kiseki runs as a stdio subprocess managed by OpenClaw. No network services, no c
 - Compaction hook: auto-ingest conversation summary before compaction
 - Session start hook: auto-search for context on session topics
 - Standing orders: periodic ingestion of workspace memory files
+- Database encryption via SQLCipher (AES-256 at rest)
+- Optional TTL/expiry for transient data
+- Content classification layer for automated data safety
 
 **v3 (future):** Context engine plugin. Kiseki-backed context assembly with automatic relevance injection into the agent's prompt.
 
